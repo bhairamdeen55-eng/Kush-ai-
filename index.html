@@ -38,6 +38,48 @@
       window.visualViewport.addEventListener('scroll', setAppHeight);
     }
     setAppHeight();
+    // Footer above keyboard handler (keeps footer visible when keyboard opens)
+(function() {
+  function updateFooterPosition() {
+    const footer = document.querySelector('footer');
+    const appMain = document.getElementById('appMain');
+    const msgs = document.getElementById('msgs');
+    if (!footer) return;
+
+    const fh = Math.ceil(footer.offsetHeight || 76);
+    document.documentElement.style.setProperty('--footer-height', fh + 'px');
+
+    if (appMain) appMain.style.paddingBottom = fh + 'px';
+    if (msgs) msgs.style.paddingBottom = `calc(${fh}px + 18px)`;
+
+    const vv = window.visualViewport;
+    if (vv) {
+      const keyboardHeight = Math.max(0, window.innerHeight - vv.height - (vv.offsetTop || 0));
+      footer.style.transform = keyboardHeight > 0 ? `translateY(-${keyboardHeight}px)` : 'translateY(0)';
+    } else {
+      footer.style.transform = 'translateY(0)';
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    updateFooterPosition();
+
+    window.addEventListener('resize', updateFooterPosition);
+    window.addEventListener('orientationchange', updateFooterPosition);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateFooterPosition);
+      window.visualViewport.addEventListener('scroll', updateFooterPosition);
+    }
+
+    const inp = document.getElementById('inp');
+    if (inp) {
+      inp.addEventListener('focus', () => setTimeout(updateFooterPosition, 50));
+      inp.addEventListener('blur',  () => setTimeout(updateFooterPosition, 50));
+    }
+
+    window.addEventListener('load', () => setTimeout(updateFooterPosition, 100));
+  });
+})();
   </script>
 
   <style>
@@ -59,6 +101,7 @@
       --sidebar-bg: rgba(9, 13, 27, 0.97);
       --sidebar-item-hover: rgba(255,255,255,0.06);
       --sidebar-item-active: rgba(99,102,241,0.18);
+      --footer-height: 76px;
     }
     [data-theme="light"] {
       --bg: linear-gradient(135deg, #f0f4ff 0%, #e0e7ff 100%);
@@ -78,7 +121,6 @@
       --sidebar-item-hover: rgba(99,102,241,0.08);
       --sidebar-item-active: rgba(99,102,241,0.14);
     }
-
     /* ===== RESET ===== */
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { height: 100%; }
@@ -461,12 +503,43 @@
     .imggen-btn.err{ color:#ef4444; border-color:rgba(239,68,68,.4); }
 
     /* ===== INPUT AREA ===== */
-    footer{
-      background:var(--header);backdrop-filter:blur(20px);
-      border-top:1px solid var(--border);padding:10px 14px;
-      padding-bottom:max(10px, env(safe-area-inset-bottom));
-      display:flex;flex-direction:column;gap:7px;flex-shrink:0;position:relative;
-    }
+    /* Make footer fixed and keep it above keyboard */
+footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 99999;
+
+  /* Visuals (same as before) */
+  background: var(--header);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid var(--border);
+  padding: 10px 14px;
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+
+  /* Rounded look kept via inner wrapper if needed; keep footer full-width for reliable positioning */
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+  box-shadow: 0 -6px 24px rgba(0,0,0,0.35);
+
+  /* for keyboard translate animations */
+  transition: transform .18s ease, bottom .18s ease;
+  will-change: transform;
+}
+
+/* Reserve space so app content doesn't get hidden under fixed footer */
+#appMain {
+  padding-bottom: var(--footer-height);
+}
+
+/* Extra bottom padding for messages so last message isn't hidden */
+#msgs {
+  padding-bottom: calc(var(--footer-height) + 18px);
+}
 
     #pendWrap{
       display:flex;align-items:center;gap:9px;
