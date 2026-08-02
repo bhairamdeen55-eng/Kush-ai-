@@ -503,7 +503,14 @@
     .imggen-btn.err{ color:#ef4444; border-color:rgba(239,68,68,.4); }
 
     /* ===== INPUT AREA ===== */
-    /* Make footer fixed and keep it above keyboard */
+/* Make footer fixed and keep it above keyboard */
+:root {
+  /* existing vars... */
+  --sidebar-width: 280px; /* width of sidebar on wide screens */
+  /* --footer-height should already be present (JS updates it) */
+}
+
+/* Default: fixed full-width footer (mobile) */
 footer {
   position: fixed;
   left: 0;
@@ -521,7 +528,7 @@ footer {
   flex-direction: column;
   gap: 7px;
 
-  /* Rounded look kept via inner wrapper if needed; keep footer full-width for reliable positioning */
+  /* keep full-width on mobile for safe positioning */
   border-top-left-radius: 12px;
   border-top-right-radius: 12px;
   box-shadow: 0 -6px 24px rgba(0,0,0,0.35);
@@ -539,6 +546,27 @@ footer {
 /* Extra bottom padding for messages so last message isn't hidden */
 #msgs {
   padding-bottom: calc(var(--footer-height) + 18px);
+}
+
+/* WIDE SCREENS: align footer with chat area (leave sidebar space) */
+@media (min-width: 860px) {
+  footer {
+    /* Position footer aligned to the chat column (not under sidebar) */
+    left: var(--sidebar-width);
+    width: calc(100% - var(--sidebar-width));
+    /* keep the rounded corners on the left where it meets chat */
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+  }
+}
+
+/* SMALL SCREENS: when sidebar is opened as overlay, hide footer so it doesn't show inside sidebar */
+@media (max-width: 859px) {
+  /* when sidebar slides in with .open, hide the footer so sidebar overlay doesn't show footer */
+  #sidebar.open + #chatShell footer,
+  #sidebarBackdrop.show + #chatShell footer {
+    display: none;
+  }
 }
 
     #pendWrap{
