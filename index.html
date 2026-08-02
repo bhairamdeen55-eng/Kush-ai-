@@ -2328,5 +2328,216 @@ async function sendMessage() {
 }
 
 // ================================================================
-// 🎨  SEND — IMAGE GENERATION FLOW (Guru 8 / Guru 9)
-/
+// SEND — IMAGE GENERATION FLOW (Guru 8 / Guru 9)
+// ================================================================
+async function sendImagePrompt(promptText) {
+  if (!promptText) { toast('✍️ Prompt likhein', 'Image banane ke liye kuch text likhein', 'warning', 2500); inp.focus(); return; }
+  if (!CFG.image?.enabled) { toast('🎨 Image gen unavailable', 'Server par image function enable nahi hai', 'error', 4000); return; }
+
+  isSending = true;
+  stopRequested = false;
+  currentAbort = new AbortController();
+  updateSendBtn();
+  welcome.style.display = 'none';
+
+  inp.value = '';
+  inp.style.height = 'auto';
+
+  renderMsg(promptText, 'user', getTime(), true);
+  beep('send');
+
+  // Loading/animation card shows FIRST — this always fires before we
+  // touch the network, so the shimmering spinner + rotating captions
+  // are guaranteed to appear before an image (or an error) replaces it.
+  const loading = renderImageGenLoading(promptText);
+
+  try {
+    const chosenGuru = MODELS.find(x => x.id === selModel) || MODELS[7];
+    const imgUrl = await generateImage(promptText, chosenGuru.apiModel, currentAbort.signal);
+    loading.stop();
+    renderImageResult(loading.card, imgUrl, promptText, true);
+    beep('receive');
+  } catch(err) {
+    loading.stop();
+    if (err.name === 'AbortError') {
+      loading.card.innerHTML = `<div class="imggen-loading" style="min-height:auto;padding:18px;">
+        <div class="imggen-label">⏹️ Image generation rok diya gaya</div>
+      </div>`;
+    } else {
+      loading.card.innerHTML = `<div class="imggen-loading" style="min-height:auto;padding:18px;">
+        <div class="imggen-label" style="color:#ef4444">❌ Image nahi ban payi: ${esc(err.message)}</div>
+      </div>`;
+      toast('❌ Image generation failed', err.message, 'error', 5000);
+    }
+  } finally {
+    isSending = false;
+    stopRequested = false;
+    currentAbort = null;
+    updateSendBtn();
+    inp.focus();
+    scrollBottom();
+  }
+}
+
+// ================================================================
+// 🌐  API CALLS  (via secure Netlify Functions — no keys in browser)
+// ================================================================
+async function chatCompletion(model, systemPrompt, userContent, signal) {
+  const res = await fetch(CFG.chatEndpoint, {
+    method: 'POST',
+    signal,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, systemPrompt, userContent })
+  });
+
+  let data;
+  try { data = await res.json(); } catch(_) { data = {}; }
+
+  if (!res.ok) {
+    const serverMsg = data.error?.message || data.error || data.message || `HTTP ${res.status}`;
+    const err = new Error(serverMsg);
+    err.status = res.status;
+    throw err;
+  }
+
+  const txt = data.choices?.[0]?.message?.content;
+  if (!txt) throw new Error('API ne khaali response diya (empty content)');
+  return txt.trim();
+}
+
+async function callText(prompt, model, signal) {
+  const eff = EFFECTS.find(e=>e.id===selEffect) || EFFECTS[1];
+  const sys = buildSystemPrompt(eff.prompt);
+  try {
+    return await chatCompletion(model, sys, prompt, signal);
+  } catch(err) {
+    if (err.name === 'AbortError') throw err;
+    if (model !== 'openai' && (err.status === 400 || err.status === 404 || err.status === 422 || err.status === 402)) {
+      const reason = err.status === 402 ? 'is model ke liye Pollen balance kam hai' : `${model} kaam nahi kar raha`;
+      toast('⚠️ Model unavailable', `${reason}, default model (GURU 1) try kar rahe hain...`, 'warning', 3500);
+      return await chatCompletion('openai', sys, prompt, signal);
+    }
+    throw err;
+  }
+}
+
+async function callVision(prompt, imageDataUrl, signal) {
+  const eff = EFFECTS.find(e=>e.id===selEffect) || EFFECTS[1];
+  const sys = buildSystemPrompt(eff.prompt);
+  const userContent = [
+    { type:'text', text: prompt },
+    { type:'image_url', image_url:{ url: imageDataUrl, detail:'high' } }
+  ];
+  return await chatCompletion(CFG.vision.model || 'openai', sys, userContent, signal);
+}
+
+function buildSystemPrompt(effortPrompt) {
+  const m = MODELS.find(x => x.id === selModel) || MODELS[0];
+  return `Tum "${m.name}" ho — ek extremely intelligent study assistant, deployed by Bhairamdeen Kushwaha, powered by TEAMVB. Tum Hindi aur Hinglish me simple, clear aur exact explanations dete ho. Math formulas, code, aur scientific terms ko beautifully format karo.
+Response level: ${effortPrompt}
+
+MUHIM NIRDESH — SHAYARI:
+- Apne poore jawab (explanation, code, sab kuch) ke bilkul sabse AAKHRI me, ek naye alag paragraph me, ek ✨ ke saath ek nayi, original Hindi/Urdu shayari jaroor include karo jo student ke sawaal aur tumhare jawab se related ho.
+- ✨ symbol sirf ek hi baar aur sirf sabse END me use karo — kabhi bhi jawab ke shuru me, beech me, ya code/heading ke sath mila kar mat karo.
+- HAR BAAR bilkul nayi shayari banao — kabhi bhi doosri baar wahi shayari mat dohrana.
+- Shayari student ko motivate kare, ya topic ko kavita ke roop me samjhaaye.
+- Shayari sirf 2-4 chhoti plain lines ki ho — isme koi code, triple-backtick fence, single backtick, ## heading, ya HTML tag bilkul nahi hona chahiye.
+- Shayari ko ✨ se start karo, jaise: ✨ tumhari shayari yahan`;
+}
+
+// ================================================================
+// ✨  SHAYARI EXTRACTION
+// ================================================================
+function extractShayari(text) {
+  const idx = text.lastIndexOf('✨');
+  if (idx === -1) return null;
+
+  const after = text.slice(idx);
+  const pat = /^✨\s*(?:Shayari|शायरी|Couplet|Thought|Vichar|Shayri)?\s*[:\-–—]?\s*([\s\S]+)$/i;
+  const m = after.match(pat);
+  if (!m) return null;
+
+  const shayari = m[1].trim();
+  if (shayari.length <= 15) return null;
+
+  const hasCodeFence   = /```/.test(shayari);
+  const hasHeading     = /^\s{0,3}#{1,6}\s/m.test(shayari);
+  const hasBacktick    = /`/.test(shayari);
+  const hasHtmlTag     = /<\/?[a-zA-Z][^>]*>/.test(shayari);
+  const paraCount      = shayari.split(/\n\s*\n/).filter(p => p.trim()).length;
+  const tooLong        = shayari.length > 260;
+  const tooManyParas   = paraCount > 2;
+  const tooManyLines   = shayari.split('\n').filter(l => l.trim()).length > 6;
+
+  if (hasCodeFence || hasHeading || hasBacktick || hasHtmlTag || tooLong || tooManyParas || tooManyLines) {
+    return null;
+  }
+
+  const main = text.slice(0, idx).trim();
+  return { main, shayari };
+}
+
+// ================================================================
+// 🔗  SOURCE / CITATION EXTRACTION
+// ================================================================
+function extractSources(text) {
+  const pat = /\n{0,2}-{2,}\s*\n\s*Sources?\s*:?\s*\n([\s\S]+)$/i;
+  const pat2 = /\n{1,2}Sources?\s*:\s*\n([\s\S]+)$/i;
+  const m = text.match(pat) || text.match(pat2);
+  if (!m) return null;
+  const block = m[1];
+  const urls = [...block.matchAll(/https?:\/\/[^\s\)\]"']+/g)]
+    .map(x => x[0].replace(/[.,;:]+$/, ''));
+  if (!urls.length) return null;
+  const main = text.slice(0, text.indexOf(m[0])).trim();
+  const seen = new Set();
+  const uniqueUrls = urls.filter(u => (seen.has(u) ? false : (seen.add(u), true)));
+  return { main, urls: uniqueUrls };
+}
+
+// ================================================================
+// 📋  CLIPBOARD
+// ================================================================
+function copyText(txt) {
+  return new Promise((res, rej) => {
+    if (navigator.clipboard?.writeText && window.isSecureContext) {
+      navigator.clipboard.writeText(txt).then(res).catch(() => fallbackCopy(txt) ? res() : rej());
+    } else {
+      fallbackCopy(txt) ? res() : rej();
+    }
+  });
+}
+function fallbackCopy(txt) {
+  const ta = document.createElement('textarea');
+  ta.value=txt; ta.style.cssText='position:fixed;top:-9999px;left:-9999px';
+  document.body.appendChild(ta); ta.select();
+  const ok = document.execCommand('copy');
+  document.body.removeChild(ta); return ok;
+}
+function copyMsg(btn) {
+  const txt = btn.closest('.msg').querySelector('.msg-content').innerText;
+  copyText(txt).then(() => { btn.innerHTML='<i class="fas fa-check"></i>'; setTimeout(()=>btn.innerHTML='<i class="fas fa-copy"></i>',1500); });
+}
+function speakMsg(btn) {
+  const txt = btn.closest('.msg').querySelector('.msg-content').innerText;
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(txt);
+    u.lang = 'hi-IN';
+    window.speechSynthesis.speak(u);
+  }
+}
+
+// ================================================================
+// 🔍  LIGHTBOX
+// ================================================================
+function openLightbox(src) { lbImg.src=src; lightbox.classList.remove('hide'); }
+lightbox.addEventListener('click', () => lightbox.classList.add('hide'));
+
+// MODAL JAILBREAK: Modal ko automatically body me move karne ke liye
+document.body.appendChild(document.getElementById('pickerBackdrop'));
+document.body.appendChild(document.getElementById('picker'));
+
+</script>
+</body>
+</html>
