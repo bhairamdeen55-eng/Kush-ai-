@@ -1,0 +1,9 @@
+{
+  "name": "kush-ai",
+  "version": "1.0.0",
+  "description": "Kush AI - 24x7 Smart Study Assistant, deployed by Bhairamdeen Kushwaha, powered by TEAMVB",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  }
+}
