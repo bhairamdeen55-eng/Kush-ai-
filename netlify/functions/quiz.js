@@ -6,16 +6,16 @@ const { initStore, getUser, isPremium } = require('./_shared/quota');
 const QUESTIONS = [
   { q: 'Kush AI ka main kaam kya hai?', options: ['Movie streaming', '24×7 Study Assistant', 'Gaming platform', 'Shopping app'], ans: 1 },
   { q: 'Kush AI kis platform par deploy hai?', options: ['GitHub Pages', 'Vercel', 'Netlify', 'Heroku'], ans: 2 },
-  { q: 'GURU 5 model ka ID kaunsa hai?', options: ['gpt-5.4-mini', 'openai', 'gpt-oss', 'openai-fast'], ans: 2 },
-  { q: 'GURU 8 (sabse powerful) model ka ID kaunsa hai?', options: ['guru1', 'guru6', 'openai-fast', 'gpt-5.4'], ans: 1 },
-  { q: 'Kush AI ke har jawab ke end me kya milta hai?', options: ['Advertisement', 'Nayi shayari ✨', 'Song link', 'Game coupon'], ans: 1 },
+  { q: 'GURU 6 ka provider kya hai?', options: ['SEARCH ENGINE', 'PROGRAMMING', 'FAST RESPONSE', 'IMAGE GEN'], ans: 2 },
+  { q: 'GURU 8 kis kaam ke liye hai?', options: ['Coading', 'Search engine', 'IMAGE GEN', 'Reading'], ans: 2 },
+  { q: 'GURU 5 (PROGRAMMING) ka apiModel kaunsa hai?', options: ['kimi-k3', 'qwen-coder', 'mistral', 'deepseek'], ans: 1 },
   { q: 'Photo upload karne par app kya karta hai?', options: ['Delete kar deta hai', 'Sirf save karta hai', 'Vision/OCR se padhkar jawab deta hai', 'Filter lagata hai'], ans: 2 },
-  { q: 'PDF upload karne par kya hota hai?', options: ['Text extract hokar padha jaata hai', 'File corrupt ho jaati hai', 'Sirf preview milta hai', 'Kuch nahi hota'], ans: 2 },
+  { q: 'PDF upload karne par kya hota hai?', options: ['Text extract hokar padha jaata hai', 'File corrupt ho jaati hai', 'Sirf preview milta hai', 'Kuch nahi hota'], ans: 0 },
   { q: 'Incognito Mode on karne par kya hota hai?', options: ['Chat history save hoti hai', 'Chat history save nahi hoti', 'Speed double hoti hai', 'Theme dark ho jaata hai'], ans: 1 },
   { q: 'App me kitne themes available hain?', options: ['Sirf 1 (dark)', 'Sirf 1 (light)', '2 (dark + light)', '5 rainbow themes'], ans: 2 },
-  { q: 'Science: H₂O kya hai?', options: ['Oxygen', 'Pani', 'Salt', 'Sugar'], ans: 1 },
-  { q: 'Maths: √144 (144 ka vargmul) kya hai?', options: ['10', '11', '12', '14'], ans: 2 },
-  { q: 'GK: Kis planet ko "Red Planet" kaha jaata hai?', options: ['Venus', 'Jupiter', 'Mars', 'Saturn'], ans: 2 }
+  { q: 'Har jawab ke end me kya milta hai?', options: ['Advertisement', 'Nayi shayari ✨', 'Song link', 'Game coupon'], ans: 1 },
+  { q: 'GURU 1 ka icon kaunsa hai?', options: ['⚡', '🔍', '💎', '🎨'], ans: 0 },
+  { q: 'GURU 9 kis kaam ke liye hai?', options: ['Coading', 'IMAGE GEN', 'Search', 'Study'], ans: 1 }
 ];
 
 const PASS_SCORE = 10;                    // 12 me se 10 sahi chahiye
@@ -61,22 +61,18 @@ exports.handler = async (event) => {
       return { statusCode: 200, headers: CORS, body: JSON.stringify({ passed: true, alreadyPremium: true, premium: true, premiumUntil: user.premiumUntil }) };
     }
 
-    // Server-side scoring — kabhi bhi frontend par bharosa nahi
+    // Server-side scoring — frontend par bharosa nahi
     let score = 0;
     answers.forEach((a, i) => { if (QUESTIONS[i] && a === QUESTIONS[i].ans) score++; });
     const passed = score >= PASS_SCORE;
 
     user.quizAttempts = (user.quizAttempts || 0) + 1;
-
+    user.lastQuizScore = score;
     if (passed) {
       user.premiumUntil = Date.now() + PREMIUM_DURATION_MS;   // ⏰ 30 din
       user.lastQuizPassAt = Date.now();
-      user.lastQuizScore = score;
-      await store.setJSON('u:' + userId, user);
-    } else {
-      user.lastQuizScore = score;
-      await store.setJSON('u:' + userId, user);
     }
+    await store.setJSON('u:' + userId, user);
 
     return {
       statusCode: 200,
