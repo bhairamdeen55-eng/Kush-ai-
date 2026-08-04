@@ -1,6 +1,6 @@
 // netlify/functions/image.js
-// Image generation proxy with Free/Pro quota (10 image gen/day/model, Pro = unlimited)
-const { initStore, canUse, recordUsage } = require('./_shared/quota');
+// Image generation proxy (GURU 8 = flux, GURU 9 = turbo) with Free/Pro quota
+const { initStore, canUse, recordUsage, modelIdFor } = require('./_shared/quota');
 
 exports.handler = async (event) => {
   const headers = {
@@ -14,32 +14,30 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
 
   let payload;
-  try {
-    payload = JSON.parse(event.body || '{}');
-  } catch (e) {
-    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON body' }) };
-  }
+  try { payload = JSON.parse(event.body || '{}'); }
+  catch (e) { return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON body' }) }; }
 
-  const { prompt, model, userId } = payload;
+  const { prompt, model, modelId, userId } = payload;
   if (!prompt) return { statusCode: 400, headers, body: JSON.stringify({ error: 'prompt zaroori hai' }) };
+
+  const apiModel = model || (modelId === 'guru9' ? 'turbo' : 'flux'); // default flux
+  const qid = modelId || modelIdFor(apiModel); // guru8/guru9 -> premium pool
 
   const apiKey = process.env.POLLINATIONS_API_KEY;
   if (!apiKey) {
     return { statusCode: 500, headers, body: JSON.stringify({ error: 'Server par POLLINATIONS_API_KEY set nahi hai.' }) };
   }
 
-  const modelId = model || 'flux';
-
   // ========== QUOTA CHECK ==========
   let store = null;
   if (userId) {
     store = initStore(event);
-    const { ok, quota } = await canUse(store, userId, modelId);
+    const { ok, quota } = await canUse(store, userId, qid);
     if (!ok) {
       return {
         statusCode: 429,
         headers,
-        body: JSON.stringify({ error: `Image generation limit khatam (10/day per model). Quiz karke Pro unlock karo! 👑`, quota })
+        body: JSON.stringify({ error: 'Image generation limit khatam (GURU 8/9 sirf Pro me unlimited). Quiz karke Pro unlock karo! 👑', quota })
       };
     }
   }
@@ -50,7 +48,7 @@ exports.handler = async (event) => {
     const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}`
       + `?width=1536&height=1536&seed=${seed}`
       + `&nologo=true&enhance=true`
-      + `&model=${encodeURIComponent(modelId)}`
+      + `&model=${encodeURIComponent(apiModel)}`
       + `&referrer=kushai`
       + `&key=${encodeURIComponent(apiKey)}`;
 
@@ -64,14 +62,10 @@ exports.handler = async (event) => {
     const contentType = upstream.headers.get('content-type') || 'image/jpeg';
 
     // ========== SUCCESS par count ==========
-    if (userId && store) await recordUsage(store, userId, modelId);
+    if (userId && store) await recordUsage(store, userId, qid);
     // =======================================
 
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ dataUrl: `data:${contentType};base64,${base64}` })
-    };
+    return { statusCode: 200, headers, body: JSON.stringify({ dataUrl: `data:${contentType};base64,${base64}` }) };
   } catch (err) {
     return { statusCode: 500, headers, body: JSON.stringify({ error: err.message || 'Unknown server error' }) };
   }
