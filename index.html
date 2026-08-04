@@ -872,6 +872,32 @@ footer {
       #sidebar{ position:relative; transform:none !important; box-shadow:none; max-width:280px; }
       .menu-btn{ display:none; }
     }
+    /* ========== PRO UNLOCK QUIZ ========== */
+#quizOverlay,#upgradeOverlay{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.75);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeIn .25s ease}
+#quizOverlay.hide,#upgradeOverlay.hide{display:none}
+.quiz-card{width:min(620px,100%);max-height:88vh;overflow-y:auto;background:var(--card,#1a1d29);border:1px solid rgba(255,255,255,.09);border-radius:20px;padding:22px;box-shadow:0 24px 80px rgba(0,0,0,.5)}
+.quiz-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px}
+.quiz-head h2{font-size:1.3rem;margin:0;background:linear-gradient(90deg,#f7b733,#fc4a1a);-webkit-background-clip:text;background-clip:text;color:transparent}
+.quiz-head p{margin:4px 0 0;font-size:.85rem;opacity:.75}
+.quiz-close{background:none;border:none;color:inherit;font-size:1.2rem;cursor:pointer;opacity:.7}
+.quiz-close:hover{opacity:1}
+.quiz-progress{height:8px;background:rgba(255,255,255,.1);border-radius:99px;overflow:hidden;margin-bottom:18px}
+#quizBar{height:100%;width:0;background:linear-gradient(90deg,#f7b733,#fc4a1a);border-radius:99px;transition:width .3s ease}
+.quiz-q{margin-bottom:18px;padding:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;background:rgba(255,255,255,.03)}
+.quiz-q .q-num{font-size:.72rem;opacity:.55;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.quiz-q .q-text{font-weight:600;margin:6px 0 10px}
+.quiz-opt{display:flex;align-items:center;gap:10px;padding:10px 12px;margin:6px 0;border:1px solid rgba(255,255,255,.1);border-radius:10px;cursor:pointer;transition:all .15s;font-size:.9rem}
+.quiz-opt:hover{border-color:#f7b733;background:rgba(247,183,51,.08)}
+.quiz-opt.sel{border-color:#f7b733;background:rgba(247,183,51,.15)}
+.quiz-opt .q-dot{width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,.3);display:inline-flex;align-items:center;justify-content:center;font-size:.65rem;flex-shrink:0}
+.quiz-opt.sel .q-dot{background:#f7b733;border-color:#f7b733;color:#000}
+.quiz-submit{width:100%;margin-top:8px;padding:14px;border:none;border-radius:14px;font-size:1.05rem;font-weight:800;cursor:pointer;background:linear-gradient(90deg,#f7b733,#fc4a1a);color:#000}
+.quiz-submit:disabled{opacity:.5;cursor:not-allowed}
+.quiz-retry{display:inline-block;margin-top:10px;padding:10px 22px;border:1px solid #f7b733;border-radius:99px;background:none;color:inherit;cursor:pointer;font-weight:700}
+#quizResult{text-align:center;padding:18px 0}
+.pass-anim{font-size:3rem;animation:pop .4s ease}
+@keyframes pop{0%{transform:scale(.4);opacity:0}100%{transform:scale(1);opacity:1}}
+#quotaBadge{font-size:.78rem;opacity:.85;margin-top:10px;padding:8px 10px;border-radius:10px;background:rgba(247,183,51,.1);border:1px solid rgba(247,183,51,.3);text-align:center}
   </style>
 </head>
 <body>
@@ -923,8 +949,11 @@ footer {
     <div class="sb-list" id="sbList"></div>
     <div class="sb-bottom">
       <a class="sb-bottom-btn install" id="sbInstallApp" href="kushai.apk" download="kushai.apk">
-        <i class="fas fa-mobile-alt"></i> App Install Karein (APK)
+        <i class="fas fa-mobile-alt"></i> Install app
       </a>
+      <button id="btnEnablePro" style="background:linear-gradient(90deg,#f7b733,#fc4a1a);color:#000;font-weight:800;border:none;border-radius:12px;padding:12px;margin-top:8px;width:100%;cursor:pointer;">
+       <i class="fas fa-crown"></i> 👑 Enable Pro Version
+      </button>
       <button class="sb-bottom-btn" id="sbThemeBtn"><i class="fas fa-moon"></i> <span id="sbThemeLabel">Dark Theme</span></button>
       <button class="sb-bottom-btn danger" id="sbClearAll"><i class="fas fa-trash-alt"></i> Sab chats delete karein</button>
       <div class="sb-credit">Deployed by <b>Bhairamdeen Kushwaha</b> · Powered by <b>TEAMVB</b></div>
@@ -1184,7 +1213,9 @@ function rateLimited() {
 // ================================================================
 // 🤖  AI MODELS
 // ================================================================
-const MODELS = [
+  // 👑 PRO MODELS (quiz se unlock hote hain) — GURU 5-9
+  const PRO_MODEL_IDS = ['guru5', 'guru6', 'guru7', 'guru8', 'guru9'];
+  const MODELS = [
   { id:'guru1', apiModel:'kimi-k3',    name:'GURU 1',  provider:'ALL HELP',      icon:'⚡', color:'#10a37f' },
   { id:'guru2', apiModel:'mistral',    name:'GURU 2',  provider:'SEARCH ENGINE', icon:'🔍', color:'#ff6b35' },
   { id:'guru3', apiModel:'llama',      name:'GURU 3',  provider:'READ BEST',    icon:'🧠', color:'#8b5cf6' },
@@ -2520,6 +2551,11 @@ async function callText(prompt, model, signal) {
     return await chatCompletion(model, sys, prompt, signal);
   } catch(err) {
     if (err.name === 'AbortError') throw err;
+    // 🔒 Limit khatam? Quiz kholo
+    if (err && (err.status === 429 || /khatam|limit/i.test(err.message || ''))) {
+      openQuiz();
+      return;
+    }
     if (model !== 'openai' && (err.status === 400 || err.status === 404 || err.status === 422 || err.status === 402)) {
       const reason = err.status === 402 ? 'is model ke liye Pollen balance kam hai' : `${model} kaam nahi kar raha`;
       toast('⚠️ Model unavailable', `${reason}, default model (GURU 1) try kar rahe hain...`, 'warning', 3500);
@@ -2646,6 +2682,248 @@ lightbox.addEventListener('click', () => lightbox.classList.add('hide'));
 document.body.appendChild(document.getElementById('pickerBackdrop'));
 document.body.appendChild(document.getElementById('picker'));
 
+  // ================================================================
+// 👑 PRO SYSTEM — userId, quota, quiz unlock (tumhare MODELS ke hisaab se)
+// ================================================================
+function makeUserId() {
+  try { return crypto.randomUUID(); } catch (e) {
+    return 'u-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  }
+}
+const USER_ID_KEY = 'kush_user_id';
+let userId = localStorage.getItem(USER_ID_KEY);
+if (!userId) { userId = makeUserId(); localStorage.setItem(USER_ID_KEY, userId); }
+let premium = false;
+let quotaInfo = null;
+
+// ---- Quota status server se lo ----
+async function refreshQuota() {
+  try {
+    const r = await fetch('/.netlify/functions/usage', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'check', userId: userId })
+    });
+    quotaInfo = await r.json();
+    premium = !!quotaInfo.premium;
+    updateQuotaBadge();
+    decorateModelList();
+  } catch (e) { /* silent */ }
+}
+
+// ---- Header/sidebar quota badge ----
+function updateQuotaBadge() {
+  let el = document.getElementById('quotaBadge');
+  if (!el) {
+    const sb = document.querySelector('.sidebar') || document.body;
+    el = document.createElement('div');
+    el.id = 'quotaBadge';
+    sb.appendChild(el);
+  }
+  if (premium) {
+    const days = Math.max(0, Math.ceil((quotaInfo.premiumUntil - Date.now()) / 864e5));
+    el.textContent = '👑 PRO ACTIVE — ' + days + ' din baaki • Unlimited';
+    el.style.background = 'rgba(74,222,128,.12)';
+    el.style.borderColor = 'rgba(74,222,128,.4)';
+  } else {
+    el.textContent = '🔥 Aaj bache: ' + quotaInfo.remainingPremiumToday + '/3 Pro messages';
+  }
+}
+
+// ---- Premium model check (GURU 5-9) ----
+function isPremiumModel(id) {
+  return PRO_MODEL_IDS.indexOf(id) !== -1;
+}
+
+// ---- Model list me lock badges ----
+function decorateModelList() {
+  document.querySelectorAll('[data-model], .model-item, .model-btn').forEach(function (el) {
+    if (el.querySelector('.pro-lock-badge')) el.querySelector('.pro-lock-badge').remove();
+    if (premium) return;
+    var id = el.getAttribute && (el.getAttribute('data-model') || el.dataset.model);
+    var isPro = PRO_MODEL_IDS.indexOf(id) !== -1;
+    if (!isPro) {
+      // fallback: name se match karo (guru5, guru6...)
+      var m = MODELS.find(function (x) { return PRO_MODEL_IDS.indexOf(x.id) !== -1 && (el.textContent || '').indexOf(x.name) !== -1; });
+      isPro = !!m;
+    }
+    if (isPro) {
+      var b = document.createElement('span');
+      b.className = 'pro-lock-badge';
+      b.style.cssText = 'margin-left:6px;font-size:.7rem;background:linear-gradient(90deg,#f7b733,#fc4a1a);color:#000;border-radius:99px;padding:2px 8px;font-weight:800';
+      b.textContent = '🔒 PRO';
+      el.appendChild(b);
+    }
+  });
+}
+
+// ---- Locked model par click => upgrade modal ----
+document.addEventListener('click', function (e) {
+  var t = e.target.closest('[data-model], .model-item, .model-btn');
+  if (!t || premium) return;
+  var id = t.getAttribute && (t.getAttribute('data-model') || t.dataset.model);
+  var isPro = PRO_MODEL_IDS.indexOf(id) !== -1;
+  if (!isPro) {
+    var m = MODELS.find(function (x) { return PRO_MODEL_IDS.indexOf(x.id) !== -1 && (t.textContent || '').indexOf(x.name) !== -1; });
+    isPro = !!m;
+  }
+  if (isPro) { e.preventDefault(); e.stopPropagation(); showUpgradeModal(); }
+});
+
+// ---- Upgrade modal ----
+function showUpgradeModal() {
+  if (premium) return;
+  document.getElementById('upgradeOverlay').classList.remove('hide');
+}
+document.getElementById('upgradeClose')?.addEventListener('click', function () { document.getElementById('upgradeOverlay').classList.add('hide'); });
+document.getElementById('upgradeGoQuiz')?.addEventListener('click', function () {
+  document.getElementById('upgradeOverlay').classList.add('hide');
+  openQuiz();
+});
+document.getElementById('btnEnablePro')?.addEventListener('click', function () {
+  if (premium) { toast('👑', 'Aap already Pro ho!', 'success'); return; }
+  openQuiz();
+});
+
+// ================================================================
+// 🎯 QUIZ LOGIC
+// ================================================================
+const quizOverlay = document.getElementById('quizOverlay');
+const quizBody = document.getElementById('quizBody');
+const quizBar = document.getElementById('quizBar');
+const quizResult = document.getElementById('quizResult');
+const quizSubmit = document.getElementById('quizSubmit');
+let quizData = null;
+let quizAnswers = {};
+
+async function openQuiz() {
+  if (premium) { toast('👑', 'Aap already Pro ho!', 'success'); return; }
+  quizResult.innerHTML = '';
+  quizSubmit.classList.add('hide');
+  quizSubmit.disabled = true;
+  quizOverlay.classList.remove('hide');
+  try {
+    const r = await fetch('/.netlify/functions/quiz');
+    quizData = await r.json();
+    document.getElementById('quizSubtitle').textContent =
+      quizData.total + ' sawaal — ' + quizData.passScore + ' sahi karo, 30 din Pro free! 🔓';
+    renderQuiz();
+  } catch (e) {
+    quizBody.innerHTML = '<p>Quiz load nahi hua. Internet check karo.</p>';
+  }
+}
+document.getElementById('quizClose')?.addEventListener('click', function () { quizOverlay.classList.add('hide'); });
+
+function renderQuiz() {
+  quizAnswers = {};
+  quizBar.style.width = '0%';
+  quizBody.innerHTML = quizData.questions.map(function (item) {
+    return '<div class="quiz-q" data-id="' + item.id + '">' +
+      '<div class="q-num">SAWAAL ' + (item.id + 1) + ' / ' + quizData.total + '</div>' +
+      '<div class="q-text">' + item.q + '</div>' +
+      item.options.map(function (opt, oi) {
+        return '<div class="quiz-opt" data-oi="' + oi + '" onclick="pickAnswer(' + item.id + ',' + oi + ',this)">' +
+          '<span class="q-dot"></span><span>' + opt + '</span></div>';
+      }).join('') +
+      '</div>';
+  }).join('');
+  quizSubmit.classList.remove('hide');
+  quizSubmit.disabled = true;
+}
+
+function pickAnswer(qid, oi, el) {
+  quizAnswers[qid] = oi;
+  el.parentElement.querySelectorAll('.quiz-opt').forEach(function (o) { o.classList.remove('sel'); });
+  el.classList.add('sel');
+  var answered = Object.keys(quizAnswers).length;
+  quizBar.style.width = (answered / quizData.total * 100) + '%';
+  quizSubmit.disabled = answered < quizData.total;
+}
+
+quizSubmit.addEventListener('click', async function () {
+  if (Object.keys(quizAnswers).length < quizData.total) return;
+  quizSubmit.disabled = true;
+  quizSubmit.textContent = 'Check ho raha hai... ⏳';
+  try {
+    const r = await fetch('/.netlify/functions/quiz', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: userId, answers: quizData.questions.map(function (q) { return quizAnswers[q.id]; }) })
+    });
+    const res = await r.json();
+    quizSubmit.classList.add('hide');
+    quizBar.style.width = '100%';
+    quizBody.innerHTML = '';
+
+    if (res.passed) {
+      premium = true;
+      quizResult.innerHTML =
+        '<div class="pass-anim">🎉👑</div>' +
+        '<h2 style="margin:10px 0 4px">PRO UNLOCKED! (30 din)</h2>' +
+        '<p style="opacity:.8">' + res.score + '/' + res.total + ' sahi! Ab GURU 5-9 sab unlimited hain.</p>' +
+        '<button class="quiz-submit" onclick="closeQuizAndGoPro()">Shuru karein 🚀</button>';
+      toast('👑', 'Pro enable ho gaya! 30 din unlimited!', 'success', 4000);
+      refreshQuota();
+    } else {
+      quizResult.innerHTML =
+        '<div style="font-size:2.6rem">😅</div>' +
+        '<h2 style="margin:8px 0 4px">Thoda aur mehnat karo!</h2>' +
+        '<p style="opacity:.8">Aapne ' + res.score + '/' + res.total + ' sahi kiye — ' + quizData.passScore + ' chahiye the.</p>' +
+        '<button class="quiz-retry" onclick="openQuiz()">Dobara try karo 🔄</button>';
+      quizSubmit.textContent = 'Enable Pro Version 🔓';
+      quizSubmit.classList.remove('hide');
+      quizSubmit.disabled = false;
+      toast('😅', res.score + '/' + res.total + ' sahi — ' + quizData.passScore + ' chahiye. Dobara try karo!', 'warning');
+    }
+  } catch (e) {
+    quizSubmit.disabled = false;
+    quizSubmit.textContent = 'Enable Pro Version 🔓';
+    toast('⚠️', 'Network error — dobara try karo', 'error');
+  }
+});
+
+function closeQuizAndGoPro() {
+  quizOverlay.classList.add('hide');
+  premium = true;
+  decorateModelList();
+  updateQuotaBadge();
+}
+
+// ---- App load par status lo ----
+(function () { setTimeout(refreshQuota, 500); })();
+  
 </script>
+  <!-- 👑 PRO UNLOCK QUIZ MODAL -->
+<div id="quizOverlay" class="hide">
+  <div class="quiz-card">
+    <div class="quiz-head">
+      <div>
+        <h2><i class="fas fa-crown"></i> Pro Unlock Challenge</h2>
+        <p id="quizSubtitle">12 sawaal — 10 sahi karo, 30 din Pro free! 🔓</p>
+      </div>
+      <button id="quizClose" class="quiz-close" aria-label="Close">✕</button>
+    </div>
+    <div class="quiz-progress"><div id="quizBar"></div></div>
+    <div id="quizBody"></div>
+    <div id="quizResult"></div>
+    <button id="quizSubmit" class="quiz-submit hide">Enable Pro Version 🔓</button>
+  </div>
+</div>
+
+<!-- 👑 Upgrade info modal (locked models par dikhega) -->
+<div id="upgradeOverlay" class="hide">
+  <div class="quiz-card" style="text-align:center">
+    <h2 style="font-size:2rem;margin:10px 0">👑</h2>
+    <h2 style="margin:0 0 6px">Pro Version Locked</h2>
+    <p style="opacity:.8">GURU 5-9 sirf Pro users ke liye hai.<br>Quiz pass karo — <b>30 din unlimited!</b></p>
+    <div style="text-align:left;margin:14px 0;font-size:.9rem">
+      <p>✅ GURU 5-9 sab models unlimited</p>
+      <p>✅ Image generation unlimited</p>
+      <p>✅ No daily limit</p>
+    </div>
+    <button id="upgradeGoQuiz" class="quiz-submit">Quiz Start Karein 🎯</button>
+    <br>
+    <button id="upgradeClose" class="quiz-retry">Abhi nahi</button>
+  </div>
+</div>
 </body>
 </html>
