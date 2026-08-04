@@ -1,11 +1,6 @@
 // netlify/functions/chat.js
-//
-// Secure proxy for text + vision chat completions.
-// The real Pollinations API key NEVER goes to the browser — it is read
-// here from a Netlify environment variable (server-side only).
-//
-// Set this in Netlify: Site settings → Environment variables
-//   POLLINATIONS_API_KEY = sk_xxxxxxxxxxxxxxxxxxxx
+// Secure proxy for text + vision chat completions (with Free/Pro quota)
+const { initStore, canUse, recordUsage } = require('./_shared/quota');
 
 exports.handler = async (event) => {
   const headers = {
@@ -15,13 +10,8 @@ exports.handler = async (event) => {
     'Access-Control-Allow-Headers': 'Content-Type'
   };
 
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers, body: '' };
-  }
-
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
-  }
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
+  if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
 
   let payload;
   try {
@@ -30,8 +20,7 @@ exports.handler = async (event) => {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON body' }) };
   }
 
-  const { model, systemPrompt, userContent } = payload;
-
+  const { model, systemPrompt, userContent, userId } = payload;
   if (!model || !userContent) {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'model aur userContent zaroori hain' }) };
   }
@@ -44,6 +33,20 @@ exports.handler = async (event) => {
       body: JSON.stringify({ error: 'Server par POLLINATIONS_API_KEY set nahi hai. Netlify → Site settings → Environment variables me isse add karein.' })
     };
   }
+
+  // ========== QUOTA CHECK (server-side) ==========
+  let store = null;
+  if (userId) {
+    store = initStore(event);
+    const { ok, quota } = await canUse(store, userId, model);
+    if (!ok) {
+      const msg = quota.allowed === 3
+        ? 'Aaj ke Pro (GURU 5-8) messages khatam (3/3). Quiz karke Pro unlock karo! 👑'
+        : 'Is model ke 10 messages aaj khatam. Quiz karke Pro unlock karo ya doosra model try karo.';
+      return { statusCode: 429, headers, body: JSON.stringify({ error: msg, quota }) };
+    }
+  }
+  // ===============================================
 
   try {
     const upstream = await fetch('https://gen.pollinations.ai/v1/chat/completions', {
@@ -69,6 +72,10 @@ exports.handler = async (event) => {
       const msg = data.error?.message || data.error || data.message || `Upstream HTTP ${upstream.status}`;
       return { statusCode: upstream.status, headers, body: JSON.stringify({ error: msg }) };
     }
+
+    // ========== SUCCESS par hi count karo ==========
+    if (userId && store) await recordUsage(store, userId, model);
+    // ===============================================
 
     return { statusCode: 200, headers, body: JSON.stringify(data) };
   } catch (err) {
