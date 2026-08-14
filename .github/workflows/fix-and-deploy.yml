@@ -1,0 +1,67 @@
+name: Fix URLs and Deploy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. Saari purani Netlify URLs ko /api/ me badlo
+      - name: URLs fix karo
+        run: |
+          sed -i 's|/.netlify/functions/|/api/|g' index.html
+          echo "Bache purane references:"
+          grep -c '/\.netlify' index.html || echo "0 - sab sahi hai"
+
+      # 2. Fix ko commit + push karo (future deploys ke liye)
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          if git diff --cached --quiet; then
+            echo "Kuch nahi badla - pehle se sahi hai"
+          else
+            git commit -m "fix: Netlify URLs ko /api/ me replace kiya"
+            git push
+          fi
+
+      # 3. Abhi turant deploy karo (fixed files ke saath)
+      - name: Vercel project dhoondo
+        id: ids
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          ORG_ID=$(curl -s -H "Authorization: Bearer $VERCEL_TOKEN" https://api.vercel.com/v2/user | jq -r .user.id)
+          PROJECT_ID=$(curl -s -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v9/projects" | jq -r '.projects[] | select(.name=="kushai") | .id')
+          if [ -z "$PROJECT_ID" ]; then
+            echo "Project nahi mila. Aapke projects:"
+            curl -s -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v9/projects" | jq -r '.projects[].name'
+            exit 1
+          fi
+          echo "org=$ORG_ID" >> "$GITHUB_OUTPUT"
+          echo "project=$PROJECT_ID" >> "$GITHUB_OUTPUT"
+          echo "Project mila: $PROJECT_ID"
+
+      - name: Project link
+        run: |
+          mkdir -p .vercel
+          echo "{\"orgId\":\"${{ steps.ids.outputs.org }}\",\"projectId\":\"${{ steps.ids.outputs.project }}\"}" > .vercel/project.json
+
+      - name: Vercel CLI install
+        run: npm install -g vercel
+
+      - name: Env config lo
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build karo
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Production deploy karo
+        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
