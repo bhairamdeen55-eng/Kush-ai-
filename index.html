@@ -2699,11 +2699,12 @@ let quotaInfo = null;
 // ---- Quota status server se lo ----
 async function refreshQuota() {
   try {
-    const r = await fetch('/api/usage', {   // ← { add करें
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'check', userId: userId })
-    });
+    // ✅ CORRECT — { add किया
+const r = await fetch('/api/usage', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ action: 'check', userId: userId })
+});
     quotaInfo = await r.json();
     premium = !!quotaInfo.premium;
     updateQuotaBadge();
@@ -2785,111 +2786,192 @@ document.getElementById('btnEnablePro')?.addEventListener('click', function () {
 });
 
 // ================================================================
-// 🎯 QUIZ LOGIC
+// 🎯 QUIZ LOGIC — FIXED VERSION
 // ================================================================
-const quizOverlay = document.getElementById('quizOverlay');
-const quizBody = document.getElementById('quizBody');
-const quizBar = document.getElementById('quizBar');
-const quizResult = document.getElementById('quizResult');
-const quizSubmit = document.getElementById('quizSubmit');
 let quizData = null;
 let quizAnswers = {};
 
+// Page load par saved premium check karo
+(function checkSavedPremium() {
+  const until = parseInt(localStorage.getItem('kush_premium') || '0');
+  if (until > Date.now()) {
+    premium = true;
+  }
+})();
+
 async function openQuiz() {
-  if (premium) { toast('👑', 'Aap already Pro ho!', 'success'); return; }
-  quizResult.innerHTML = '';
-  quizSubmit.classList.add('hide');
-  quizSubmit.disabled = true;
-  quizOverlay.classList.remove('hide');
+  if (premium) { toast('👑 Aap already Pro ho!', '', 'success'); return; }
+
+  // DOM references ANDAR lo (bahar lene se null aata tha)
+  const qOverlay  = document.getElementById('quizOverlay');
+  const qResult   = document.getElementById('quizResult');
+  const qSubmit   = document.getElementById('quizSubmit');
+  const qBody     = document.getElementById('quizBody');
+  const qBar      = document.getElementById('quizBar');
+  const qSubtitle = document.getElementById('quizSubtitle');
+
+  if (!qOverlay) {
+    toast('❌ Quiz Error', 'Page reload karein', 'error');
+    return;
+  }
+
+  // Reset
+  qResult.innerHTML = '';
+  qBody.innerHTML   = '<p style="text-align:center;padding:20px;color:var(--text2)">⏳ Questions load ho rahe hain...</p>';
+  qSubmit.style.display = 'none';
+  qSubmit.disabled = true;
+  qBar.style.width = '0%';
+  qOverlay.classList.remove('hide');
+
   try {
     const r = await fetch('/api/quiz');
+    if (!r.ok) throw new Error('Server error: ' + r.status);
     quizData = await r.json();
-    document.getElementById('quizSubtitle').textContent =
-      quizData.total + ' sawaal — ' + quizData.passScore + ' sahi karo, 30 din Pro free! 🔓';
-    renderQuiz();
-  } catch (e) {
-    quizBody.innerHTML = '<p>Quiz load nahi hua. Internet check karo.</p>';
+
+    qSubtitle.textContent = quizData.total + ' sawaal — ' +
+      quizData.passScore + ' sahi karo, 30 din Pro free! 🔓';
+
+    renderQuizQuestions(qBody, qBar, qSubmit);
+
+  } catch(e) {
+    qBody.innerHTML = '<p style="text-align:center;padding:20px;color:#ef4444">' +
+      '❌ Quiz load nahi hua.<br><small>' + e.message + '</small></p>';
+    console.error('Quiz load error:', e);
   }
 }
-document.getElementById('quizClose')?.addEventListener('click', function () { quizOverlay.classList.add('hide'); });
 
-function renderQuiz() {
+function renderQuizQuestions(qBody, qBar, qSubmit) {
   quizAnswers = {};
-  quizBar.style.width = '0%';
-  quizBody.innerHTML = quizData.questions.map(function (item) {
+
+  qBody.innerHTML = quizData.questions.map(function(item) {
     return '<div class="quiz-q" data-id="' + item.id + '">' +
       '<div class="q-num">SAWAAL ' + (item.id + 1) + ' / ' + quizData.total + '</div>' +
       '<div class="q-text">' + item.q + '</div>' +
-      item.options.map(function (opt, oi) {
-        return '<div class="quiz-opt" data-oi="' + oi + '" onclick="pickAnswer(' + item.id + ',' + oi + ',this)">' +
+      item.options.map(function(opt, oi) {
+        return '<div class="quiz-opt" data-oi="' + oi + '" ' +
+          'onclick="pickAnswer(' + item.id + ',' + oi + ',this)">' +
           '<span class="q-dot"></span><span>' + opt + '</span></div>';
       }).join('') +
-      '</div>';
+    '</div>';
   }).join('');
-  quizSubmit.classList.remove('hide');
-  quizSubmit.disabled = true;
+
+  qSubmit.style.display = 'block';
+  qSubmit.disabled = true;
+  qSubmit.textContent = 'Enable Pro Version 🔓';
+  qSubmit.onclick = submitQuiz;
 }
 
 function pickAnswer(qid, oi, el) {
   quizAnswers[qid] = oi;
-  el.parentElement.querySelectorAll('.quiz-opt').forEach(function (o) { o.classList.remove('sel'); });
+
+  // Us question ke sabhi options deselect karo
+  el.closest('.quiz-q')
+    .querySelectorAll('.quiz-opt')
+    .forEach(function(o) { o.classList.remove('sel'); });
   el.classList.add('sel');
-  var answered = Object.keys(quizAnswers).length;
-  quizBar.style.width = (answered / quizData.total * 100) + '%';
-  quizSubmit.disabled = answered < quizData.total;
+
+  const answered = Object.keys(quizAnswers).length;
+  const qBar = document.getElementById('quizBar');
+  if (qBar) qBar.style.width = (answered / quizData.total * 100) + '%';
+
+  const qSubmit = document.getElementById('quizSubmit');
+  if (qSubmit) qSubmit.disabled = (answered < quizData.total);
 }
 
-quizSubmit.addEventListener('click', async function () {
+async function submitQuiz() {
+  const qSubmit = document.getElementById('quizSubmit');
+  const qResult = document.getElementById('quizResult');
+  const qBody   = document.getElementById('quizBody');
+  const qBar    = document.getElementById('quizBar');
+
   if (Object.keys(quizAnswers).length < quizData.total) return;
-  quizSubmit.disabled = true;
-  quizSubmit.textContent = 'Check ho raha hai... ⏳';
+
+  qSubmit.disabled = true;
+  qSubmit.textContent = 'Check ho raha hai... ⏳';
+
   try {
     const r = await fetch('/api/quiz', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: userId, answers: quizData.questions.map(function (q) { return quizAnswers[q.id]; }) })
+      body: JSON.stringify({
+        userId: userId,
+        answers: quizData.questions.map(function(q) { return quizAnswers[q.id]; })
+      })
     });
+
     const res = await r.json();
-    quizSubmit.classList.add('hide');
-    quizBar.style.width = '100%';
-    quizBody.innerHTML = '';
+
+    qBody.innerHTML = '';
+    if (qBar) qBar.style.width = '100%';
+    qSubmit.style.display = 'none';
 
     if (res.passed) {
       premium = true;
-      quizResult.innerHTML =
+      // 30 din local me save karo
+      localStorage.setItem('kush_premium', Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+      qResult.innerHTML =
         '<div class="pass-anim">🎉👑</div>' +
         '<h2 style="margin:10px 0 4px">PRO UNLOCKED! (30 din)</h2>' +
-        '<p style="opacity:.8">' + res.score + '/' + res.total + ' sahi! Ab GURU 5-9 sab unlimited hain.</p>' +
-        '<button class="quiz-submit" onclick="closeQuizAndGoPro()">Shuru karein 🚀</button>';
-      toast('👑', 'Pro enable ho gaya! 30 din unlimited!', 'success', 4000);
-      refreshQuota();
+        '<p style="opacity:.8">' + res.score + '/' + res.total +
+        ' sahi! Ab GURU 5-9 sab free hain.</p>' +
+        '<button class="quiz-submit" onclick="closeQuizAndGoPro()" ' +
+        'style="margin-top:14px">Shuru karein 🚀</button>';
+
+      toast('👑 Pro enable ho gaya!', '30 din unlimited access!', 'success', 4000);
+      decorateModelList();
+      updateQuotaBadge();
+
     } else {
-      quizResult.innerHTML =
+      qResult.innerHTML =
         '<div style="font-size:2.6rem">😅</div>' +
         '<h2 style="margin:8px 0 4px">Thoda aur mehnat karo!</h2>' +
-        '<p style="opacity:.8">Aapne ' + res.score + '/' + res.total + ' sahi kiye — ' + quizData.passScore + ' chahiye the.</p>' +
+        '<p style="opacity:.8">Aapne ' + res.score + '/' + res.total +
+        ' sahi kiye — ' + quizData.passScore + ' chahiye the.</p>' +
         '<button class="quiz-retry" onclick="openQuiz()">Dobara try karo 🔄</button>';
-      quizSubmit.textContent = 'Enable Pro Version 🔓';
-      quizSubmit.classList.remove('hide');
-      quizSubmit.disabled = false;
-      toast('😅', res.score + '/' + res.total + ' sahi — ' + quizData.passScore + ' chahiye. Dobara try karo!', 'warning');
+
+      toast('😅 ' + res.score + '/' + res.total + ' sahi',
+        quizData.passScore + ' chahiye the!', 'warning', 3000);
     }
-  } catch (e) {
-    quizSubmit.disabled = false;
-    quizSubmit.textContent = 'Enable Pro Version 🔓';
-    toast('⚠️', 'Network error — dobara try karo', 'error');
+
+  } catch(e) {
+    qSubmit.disabled = false;
+    qSubmit.textContent = 'Enable Pro Version 🔓';
+    toast('❌ Network Error', 'Dobara try karein: ' + e.message, 'error', 4000);
+    console.error('Quiz submit error:', e);
   }
-});
+}
 
 function closeQuizAndGoPro() {
-  quizOverlay.classList.add('hide');
+  const qOverlay = document.getElementById('quizOverlay');
+  if (qOverlay) qOverlay.classList.add('hide');
   premium = true;
   decorateModelList();
   updateQuotaBadge();
 }
 
-// ---- App load par status lo ----
-(function () { setTimeout(refreshQuota, 500); })();
+// Sidebar button
+document.getElementById('btnEnablePro')?.addEventListener('click', function() {
+  if (premium) { toast('👑', 'Aap already Pro ho!', 'success'); return; }
+  openQuiz();
+});
+
+// Quiz close button
+document.getElementById('quizClose')?.addEventListener('click', function() {
+  document.getElementById('quizOverlay')?.classList.add('hide');
+});
+
+// Upgrade modal buttons
+document.getElementById('upgradeClose')?.addEventListener('click', function() {
+  document.getElementById('upgradeOverlay')?.classList.add('hide');
+});
+document.getElementById('upgradeGoQuiz')?.addEventListener('click', function() {
+  document.getElementById('upgradeOverlay')?.classList.add('hide');
+  openQuiz();
+});
+
+// App load par quota refresh karo
+setTimeout(refreshQuota, 800);
   
 </script>
   <!-- 👑 PRO UNLOCK QUIZ MODAL -->
