@@ -1194,8 +1194,8 @@ footer {
 // key completely hidden from anyone viewing page source / devtools.
 // ================================================================
 const CFG = {
-  chatEndpoint:  '/.netlify/functions/chat',
-  imageEndpoint: '/.netlify/functions/image',
+  chatEndpoint:  '/api/chat',
+  imageEndpoint: '/api/image',
   vision: { enabled: true, model: 'openai' },
   image:  { enabled: true }
 };
@@ -1214,7 +1214,7 @@ function rateLimited() {
 // 🤖  AI MODELS
 // ================================================================
   // 👑 PRO MODELS (quiz se unlock hote hain) — GURU 5-9
-  const PRO_MODEL_IDS = ['guru5', 'guru6', 'guru7', 'guru8', 'guru9'];
+  const PRO_MODEL_IDS = ['guru1', 'guru2', 'guru3', 'guru', 'guru5', 'guru6', 'guru7', 'guru8', 'guru9'];
   const MODELS = [
   { id:'guru1', apiModel:'kimi-k3',    name:'GURU 1',  provider:'ALL HELP',      icon:'⚡', color:'#10a37f' },
   { id:'guru2', apiModel:'mistral',    name:'GURU 2',  provider:'SEARCH ENGINE', icon:'🔍', color:'#ff6b35' },
@@ -1230,7 +1230,7 @@ function rateLimited() {
 const EFFECTS = [
   { id:'Fast',     label:'Fast',     prompt:'Jawab bahut chhota aur seedha do — sirf 7 se 20 lines me core baat batao, bina extra detail ke.' },
   { id:'Balanced', label:'Balanced', prompt:'Jawab balanced length me do — clear explanation ke saath zaroori examples included.' },
-  { id:'Deep',     label:'Deep',     prompt:'Jawab professional aur bahut detailed do — step-by-step explanation, real examples, important points aur best practices ke saath.' },
+  { id:'Pro',     label:'Deep',     prompt:'Jawab professional aur bahut detailed do — step-by-step explanation, real examples, important points aur best practices ke saath.' },
 ];
 
 const THINK_PHRASES = [
@@ -2699,7 +2699,7 @@ let quotaInfo = null;
 // ---- Quota status server se lo ----
 async function refreshQuota() {
   try {
-    const r = await fetch('/.netlify/functions/usage', {
+    const r = await fetch('/api/usage', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'check', userId: userId })
     });
@@ -2802,7 +2802,7 @@ async function openQuiz() {
   quizSubmit.disabled = true;
   quizOverlay.classList.remove('hide');
   try {
-    const r = await fetch('/.netlify/functions/quiz');
+    const r = await fetch('/api/quiz');
     quizData = await r.json();
     document.getElementById('quizSubtitle').textContent =
       quizData.total + ' sawaal — ' + quizData.passScore + ' sahi karo, 30 din Pro free! 🔓';
