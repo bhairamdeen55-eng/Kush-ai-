@@ -1,0 +1,29 @@
+name: Fix Netlify URLs
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Saari purani /.netlify/functions/ URLs ko /api/ me badlo
+      - name: URLs fix karo
+        run: |
+          sed -i 's|/.netlify/functions/|/api/|g' index.html
+          echo "Bacha hua purana count:"
+          grep -c '/\.netlify' index.html || echo "0 — sab sahi hai ✅"
+
+      - name: Commit + push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          if git diff --cached --quiet; then
+            echo "Kuch nahi badla — pehle se sab sahi hai ✅"
+          else
+            git commit -m "fix: Netlify URLs ko /api/ me replace kiya"
+            git push
+          fi
