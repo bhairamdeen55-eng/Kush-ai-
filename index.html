@@ -2699,8 +2699,9 @@ let quotaInfo = null;
 // ---- Quota status server se lo ----
 async function refreshQuota() {
   try {
-    const r = await fetch('/api/usage', 
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+    const r = await fetch('/api/usage', {   // ← { add करें
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'check', userId: userId })
     });
     quotaInfo = await r.json();
@@ -2709,7 +2710,6 @@ async function refreshQuota() {
     decorateModelList();
   } catch (e) { /* silent */ }
 }
-
 // ---- Header/sidebar quota badge ----
 function updateQuotaBadge() {
   let el = document.getElementById('quotaBadge');
