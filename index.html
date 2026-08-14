@@ -2699,7 +2699,7 @@ let quotaInfo = null;
 // ---- Quota status server se lo ----
 async function refreshQuota() {
   try {
-    const r = await fetch('/api/quiz', {
+    const r = await fetch('/api/usage', 
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'check', userId: userId })
     });
@@ -2802,7 +2802,7 @@ async function openQuiz() {
   quizSubmit.disabled = true;
   quizOverlay.classList.remove('hide');
   try {
-    const r = await fetch('/api/quiz', {
+    const r = await fetch('/api/quiz');
     quizData = await r.json();
     document.getElementById('quizSubtitle').textContent =
       quizData.total + ' sawaal — ' + quizData.passScore + ' sahi karo, 30 din Pro free! 🔓';
@@ -2844,7 +2844,7 @@ quizSubmit.addEventListener('click', async function () {
   quizSubmit.disabled = true;
   quizSubmit.textContent = 'Check ho raha hai... ⏳';
   try {
-    const r = await fetch('/api/usage', {
+    const r = await fetch('/api/quiz', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: userId, answers: quizData.questions.map(function (q) { return quizAnswers[q.id]; }) })
