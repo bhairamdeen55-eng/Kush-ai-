@@ -3,27 +3,27 @@
 // Ye file kisi doosri file par depend nahi karti — mismatch hone par bhi sahi chalegi.
 
 // ============================================================
-// 📋 MODEL MAP (Updated to match your quota.js - ALL Premium)
+// 📋 MODEL MAP (Fixed Premium Lockout & Gemini Model Names)
 // ============================================================
 const MODEL_MAP = {
-  guru1: { apiModel: 'kimi-k3',     provider: 'pollinations', upstreamModel: '',                 premium: true },
-  guru2: { apiModel: 'mistral',     provider: 'pollinations', upstreamModel: '',                 premium: true },
-  guru3: { apiModel: 'llama',       provider: 'pollinations', upstreamModel: '',                 premium: true },
-  guru4: { apiModel: 'deepseek',    provider: 'pollinations', upstreamModel: '',                 premium: true },
+  guru1: { apiModel: 'kimi-k3',     provider: 'pollinations', upstreamModel: '',                 premium: false },
+  guru2: { apiModel: 'mistral',     provider: 'pollinations', upstreamModel: '',                 premium: false },
+  guru3: { apiModel: 'llama',       provider: 'pollinations', upstreamModel: '',                 premium: false },
+  guru4: { apiModel: 'deepseek',    provider: 'pollinations', upstreamModel: '',                 premium: false },
   guru5: { apiModel: 'qwen-coder',  provider: 'gemini',       upstreamModel: 'gemini-1.5-flash', premium: true }, 
-  guru6: { apiModel: 'openai',      provider: 'gemini',       upstreamModel: 'gemini-1.5-pro',   premium: true }, 
+  guru6: { apiModel: 'openai',      provider: 'gemini',       upstreamModel: 'gemini-pro',       premium: true }, 
   guru7: { apiModel: 'kimi-k3',     provider: 'respan',       upstreamModel: 'perplexity/sonar', premium: true },
   guru8: { apiModel: 'flux',        provider: 'pollinations', upstreamModel: '',                 premium: true },
   guru9: { apiModel: 'turbo',       provider: 'pollinations', upstreamModel: '',                 premium: true } 
 };
 
-// Sabhi models premium hain, toh dynamically unko fetch kar lenge
+// Premium IDs dynamically check honge, ab Guru 1-4 Free rahenge (taaki saare block na hon)
 const PREMIUM_IDS = Object.keys(MODEL_MAP).filter(id => MODEL_MAP[id].premium);
 const FREE_PREMIUM_DAILY = 3;   // Har free user ko din ke 3 premium messages milenge total
-const FREE_NORMAL_DAILY = 10;   // Agar koi normal model hoga toh 10
+const FREE_NORMAL_DAILY = 10;   // Normal models ke liye 10 message/day
 
-// Fallback chains — Sirf 100% real aur stable models (3.x ya 1.0 hata diye gaye hain)
-const GEMINI_CHAIN = ['gemini-1.5-flash', 'gemini-1.5-pro'];
+// Fallback chains — 'gemini-pro' har API key pe chalta hai, isliye isko end mein rakha hai
+const GEMINI_CHAIN = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro', 'gemini-1.0-pro'];
 const RESPAN_CHAIN = ['perplexity/sonar', 'openai/gpt-5.6-sol', 'azure_deepseek/deepseek-chat'];
 
 // ============================================================
@@ -200,7 +200,7 @@ module.exports = async (req, res) => {
   // QUOTA CHECK
   const { ok, quota } = await checkQuota(userId, qid);
   if (!ok) {
-    const msg = `Aaj ke messages khatam (${quota.used}/${quota.allowed}). Quiz karke Pro unlock karo! 👑`;
+    const msg = `Is model ke aaj ke messages khatam (${quota.used}/${quota.allowed}). Quiz karke Pro unlock karo! 👑`;
     return sendErr(429, msg);
   }
 
@@ -243,7 +243,6 @@ module.exports = async (req, res) => {
         lastMsg = (raw.error && raw.error.message) || ('Gemini HTTP ' + up.status);
         console.log('[kush-chat] gemini fail: ' + gModel + ' -> ' + up.status + ' ' + lastMsg);
         
-        // Agar API key invalid hai ya limit exceed ho gayi toh aage badhne ka fayda nahi
         if (up.status === 401 || up.status === 403 || (up.status === 400 && lastMsg.toLowerCase().includes('api key'))) {
           break; 
         }
