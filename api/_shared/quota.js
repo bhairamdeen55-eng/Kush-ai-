@@ -1,7 +1,5 @@
 // api/_shared/quota.js
 // Kush AI - Free/Pro quota system (Vercel-compatible)
-// Storage: Upstash Redis REST (env vars set ho to) warna in-memory fallback.
-// Upstash free tier: https://upstash.com -> DB banao -> REST URL + Token env me daalo.
 const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL || '';
 const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || '';
 
@@ -34,17 +32,13 @@ async function kvSet(key, value) {
   memoryStore.set(key, value);
 }
 
-// Netlify Blobs jaisa hi interface — baaki code me kuch nahi badla
 function initStore() {
   return {
-    async get(key, opts) {
-      return await kvGet(key);
-    },
+    async get(key, opts) { return await kvGet(key); },
     async setJSON(key, value) { await kvSet(key, value); }
   };
 }
 
-// Vercel ka req.body kabhi string, kabhi object aata hai — dono handle karo
 function parseBody(req) {
   try {
     if (typeof req.body === 'string') return JSON.parse(req.body || '{}');
@@ -53,32 +47,29 @@ function parseBody(req) {
 }
 
 // ================================================================
-// 📋 MODEL MAPPING — frontend ke MODELS ke hisaab se (yahi hai source of truth)
-// provider: pollinations | gemini | respan
+// 📋 MODEL MAPPING — provider: pollinations | gemini | respan
+// ⚠️ GURU 5/6 = gemini, GURU 7 = respan (yeh line mat badalna)
 // ================================================================
 const MODEL_DEFS = {
   guru1: { apiModel: 'kimi-k3',     provider: 'pollinations', premium: true }, // ALL HELP
   guru2: { apiModel: 'mistral',     provider: 'pollinations', premium: true }, // SEARCH ENGINE
   guru3: { apiModel: 'llama',       provider: 'pollinations', premium: true }, // READ BEST
   guru4: { apiModel: 'deepseek',    provider: 'pollinations', premium: true }, // COADING
-  guru5: { apiModel: 'qwen-coder',  provider: 'gemini', upstreamModel: 'gemini-2.5-pro',   premium: true }, // PROGRAMMING   👑
-  guru6: { apiModel: 'openai',      provider: 'gemini', upstreamModel: 'gemini-3.6-flash ', premium: true }, // FAST RESPONSE 👑
-  guru7: { apiModel: 'kimi-k3',     provider: 'respan', upstreamModel: 'openai/gpt-5.6-sol', premium: true }, // GURU 7       👑
+  guru5: { apiModel: 'qwen-coder',  provider: 'gemini', upstreamModel: 'gemini-2.5-pro',   premium: true }, // PROGRAMMING + SEARCH 👑
+  guru6: { apiModel: 'openai',      provider: 'gemini', upstreamModel: 'gemini-2.5-flash', premium: true }, // FAST + SEARCH     👑
+  guru7: { apiModel: 'kimi-k3',     provider: 'respan', upstreamModel: 'perplexity/sonar',  premium: true }, // WEB SEARCH        👑
   guru8: { apiModel: 'flux',        provider: 'pollinations', premium: true }, // IMAGE GEN     👑
   guru9: { apiModel: 'turbo',       provider: 'pollinations', premium: true }  // IMAGE GEN     👑
 };
-// ⬆️ Sirf GURU 5-8 premium chahiye? Toh 'guru9' wali line me premium: false kar do.
 
 const PREMIUM_MODEL_IDS = Object.keys(MODEL_DEFS).filter(id => MODEL_DEFS[id].premium);
 
-const FREE_PREMIUM_DAILY = 0;            // GURU 5-9 total: 3 msg/day (free users)
-const FREE_NORMAL_PER_MODEL_DAILY = 0;  // GURU 1-4: 10 msg/day per model
+const FREE_PREMIUM_DAILY = 3;            // GURU 5-9 total: 3 msg/day (free users)
+const FREE_NORMAL_PER_MODEL_DAILY = 10;  // GURU 1-4: 10 msg/day per model
 
-// apiModel (jaise 'flux') se id (jaise 'guru8') find karo
 function modelIdFor(apiModel) {
   return Object.keys(MODEL_DEFS).find(id => MODEL_DEFS[id].apiModel === apiModel) || apiModel;
 }
-// id se apiModel nikaalo (agar frontend sirf id bheje)
 function resolveApiModel(modelId) {
   return (MODEL_DEFS[modelId] && MODEL_DEFS[modelId].apiModel) || modelId;
 }
@@ -86,7 +77,6 @@ function isPremiumModel(id) {
   return PREMIUM_MODEL_IDS.indexOf(id) !== -1;
 }
 
-// India timezone (IST) ke hisaab se "din" — subah 5:30 AM par reset
 function todayKey() {
   return new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
 }
@@ -103,7 +93,6 @@ function isPremium(user) {
   return !!user.premiumUntil && user.premiumUntil > Date.now();
 }
 
-// User ki aaj ki usage info
 function quotaFor(user, modelId) {
   if (isPremium(user)) return { allowed: Infinity, used: 0, premium: true, premiumUntil: user.premiumUntil };
   const day = (user.days && user.days[todayKey()]) || { premium: 0, perModel: {} };
@@ -121,13 +110,12 @@ async function canUse(store, userId, modelId) {
 
 async function recordUsage(store, userId, modelId) {
   const user = await getUser(store, userId);
-  if (isPremium(user)) return user; // Pro = koi count nahi
+  if (isPremium(user)) return user;
   const dayKey = todayKey();
   if (!user.days[dayKey]) user.days[dayKey] = { premium: 0, perModel: {} };
   const day = user.days[dayKey];
   if (isPremiumModel(modelId)) day.premium = (day.premium || 0) + 1;
   day.perModel[modelId] = (day.perModel[modelId] || 0) + 1;
-  // sirf 30 din ka data rakho (cleanup)
   const keys = Object.keys(user.days).sort();
   while (keys.length > 30) delete user.days[keys.shift()];
   await store.setJSON('u:' + userId, user);
