@@ -10,8 +10,8 @@ const MODEL_MAP = {
   guru2: { apiModel: 'mistral',    provider: 'pollinations', upstreamModel: '',                 premium: false }, // SEARCH ENGINE
   guru3: { apiModel: 'llama',      provider: 'pollinations', upstreamModel: '',                 premium: false }, // READ BEST
   guru4: { apiModel: 'deepseek',   provider: 'pollinations', upstreamModel: '',                 premium: false }, // COADING
-  guru5: { apiModel: 'qwen-coder', provider: 'gemini',       upstreamModel: 'gemini-3.7-flash', premium: true  }, // PROGRAMMING + SEARCH 👑
-  guru6: { apiModel: 'openai',     provider: 'gemini',       upstreamModel: 'gemini-3.6-flash', premium: true  }, // FAST + SEARCH 👑
+  guru5: { apiModel: 'qwen-coder', provider: 'gemini',       upstreamModel: 'gemini-2.5-flash', premium: true  }, // PROGRAMMING + SEARCH 👑
+  guru6: { apiModel: 'openai',     provider: 'gemini',       upstreamModel: 'gemini-1.5-flash', premium: true  }, // FAST + SEARCH 👑
   guru7: { apiModel: 'kimi-k3',    provider: 'respan',       upstreamModel: 'perplexity/sonar', premium: true  }, // WEB SEARCH 👑
   guru8: { apiModel: 'flux',       provider: 'pollinations', upstreamModel: '',                 premium: true  }, // IMAGE GEN 👑
   guru9: { apiModel: 'turbo',      provider: 'pollinations', upstreamModel: '',                 premium: true  }  // IMAGE GEN 👑
@@ -22,7 +22,7 @@ const FREE_PREMIUM_DAILY = 3;   // free users: 3 msg/day total (guru5-9)
 const FREE_NORMAL_DAILY = 10;   // free users: 10 msg/day per model (guru1-4)
 
 // Fallback chains — pehla model fail ho toh automatic agla try hoga
-const GEMINI_CHAIN = ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3-flash-preview', 'gemini-3.5-flash-lite', 'gemini-2.5-flash-native-audio-preview-12-2025'];
+const GEMINI_CHAIN = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
 const RESPAN_CHAIN = ['perplexity/sonar', 'openai/gpt-5.6-sol', 'azure_deepseek/deepseek-chat'];
 
 // ============================================================
