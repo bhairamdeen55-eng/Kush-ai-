@@ -54,24 +54,25 @@ function parseBody(req) {
 
 // ================================================================
 // 📋 MODEL MAPPING — frontend ke MODELS ke hisaab se (yahi hai source of truth)
+// provider: pollinations | gemini | respan
 // ================================================================
 const MODEL_DEFS = {
-  guru1: { apiModel: 'kimi-k3',    premium: true  }, // ALL HELP
-  guru2: { apiModel: 'mistral',    premium: true  }, // SEARCH ENGINE
-  guru3: { apiModel: 'llama',      premium: true  }, // READ BEST
-  guru4: { apiModel: 'deepseek',   premium: true  }, // COADING
-  guru5: { apiModel: 'qwen-coder', premium: true  }, // PROGRAMMING   👑
-  guru6: { apiModel: 'openai',     premium: true  }, // FAST RESPONSE 👑
-  guru7: { apiModel: 'kimi-k3',    premium: true  }, // IMAGE         👑
-  guru8: { apiModel: 'flux',       premium: true  }, // IMAGE GEN     👑
-  guru9: { apiModel: 'turbo',      premium: true  }  // IMAGE GEN     👑
+  guru1: { apiModel: 'kimi-k3',     provider: 'pollinations', premium: true }, // ALL HELP
+  guru2: { apiModel: 'mistral',     provider: 'pollinations', premium: true }, // SEARCH ENGINE
+  guru3: { apiModel: 'llama',       provider: 'pollinations', premium: true }, // READ BEST
+  guru4: { apiModel: 'deepseek',    provider: 'pollinations', premium: true }, // COADING
+  guru5: { apiModel: 'qwen-coder',  provider: 'gemini', upstreamModel: 'gemini-2.5-pro',   premium: true }, // PROGRAMMING   👑
+  guru6: { apiModel: 'openai',      provider: 'gemini', upstreamModel: 'gemini-2.5-flash', premium: true }, // FAST RESPONSE 👑
+  guru7: { apiModel: 'kimi-k3',     provider: 'respan', upstreamModel: 'openai/gpt-5.6-sol', premium: true }, // GURU 7       👑
+  guru8: { apiModel: 'flux',        provider: 'pollinations', premium: true }, // IMAGE GEN     👑
+  guru9: { apiModel: 'turbo',       provider: 'pollinations', premium: true }  // IMAGE GEN     👑
 };
 // ⬆️ Sirf GURU 5-8 premium chahiye? Toh 'guru9' wali line me premium: false kar do.
 
 const PREMIUM_MODEL_IDS = Object.keys(MODEL_DEFS).filter(id => MODEL_DEFS[id].premium);
 
-const FREE_PREMIUM_DAILY = 3;            // GURU 5-9 total: 3 msg/day (free users)
-const FREE_NORMAL_PER_MODEL_DAILY = 10;  // GURU 1-4: 10 msg/day per model
+const FREE_PREMIUM_DAILY = 0;            // GURU 5-9 total: 3 msg/day (free users)
+const FREE_NORMAL_PER_MODEL_DAILY = 0;  // GURU 1-4: 10 msg/day per model
 
 // apiModel (jaise 'flux') se id (jaise 'guru8') find karo
 function modelIdFor(apiModel) {
