@@ -3,26 +3,27 @@
 // Ye file kisi doosri file par depend nahi karti — mismatch hone par bhi sahi chalegi.
 
 // ============================================================
-// 📋 MODEL MAP — SINGLE SOURCE OF TRUTH (yahin routing set hai)
+// 📋 MODEL MAP (Updated to match your quota.js - ALL Premium)
 // ============================================================
 const MODEL_MAP = {
-  guru1: { apiModel: 'kimi-k3',    provider: 'pollinations', upstreamModel: '',                 premium: false }, // ALL HELP
-  guru2: { apiModel: 'mistral',    provider: 'pollinations', upstreamModel: '',                 premium: false }, // SEARCH ENGINE
-  guru3: { apiModel: 'llama',      provider: 'pollinations', upstreamModel: '',                 premium: false }, // READ BEST
-  guru4: { apiModel: 'deepseek',   provider: 'pollinations', upstreamModel: '',                 premium: false }, // COADING
-  guru5: { apiModel: 'qwen-coder', provider: 'gemini',       upstreamModel: 'gemini-1.5-flash', premium: true  }, // PROGRAMMING + SEARCH 👑
-  guru6: { apiModel: 'openai',     provider: 'gemini',       upstreamModel: 'gemini-1.0-pro',   premium: true  }, // FAST + SEARCH 👑
-  guru7: { apiModel: 'kimi-k3',    provider: 'respan',       upstreamModel: 'perplexity/sonar', premium: true  }, // WEB SEARCH 👑
-  guru8: { apiModel: 'flux',       provider: 'pollinations', upstreamModel: '',                 premium: true  }, // IMAGE GEN 👑
-  guru9: { apiModel: 'turbo',      provider: 'pollinations', upstreamModel: '',                 premium: true  }  // IMAGE GEN 👑
+  guru1: { apiModel: 'kimi-k3',     provider: 'pollinations', upstreamModel: '',                 premium: true },
+  guru2: { apiModel: 'mistral',     provider: 'pollinations', upstreamModel: '',                 premium: true },
+  guru3: { apiModel: 'llama',       provider: 'pollinations', upstreamModel: '',                 premium: true },
+  guru4: { apiModel: 'deepseek',    provider: 'pollinations', upstreamModel: '',                 premium: true },
+  guru5: { apiModel: 'qwen-coder',  provider: 'gemini',       upstreamModel: 'gemini-1.5-flash', premium: true }, 
+  guru6: { apiModel: 'openai',      provider: 'gemini',       upstreamModel: 'gemini-1.5-pro',   premium: true }, 
+  guru7: { apiModel: 'kimi-k3',     provider: 'respan',       upstreamModel: 'perplexity/sonar', premium: true },
+  guru8: { apiModel: 'flux',        provider: 'pollinations', upstreamModel: '',                 premium: true },
+  guru9: { apiModel: 'turbo',       provider: 'pollinations', upstreamModel: '',                 premium: true } 
 };
 
-const PREMIUM_IDS = ['guru5','guru6','guru7','guru8','guru9'];
-const FREE_PREMIUM_DAILY = 3;   // free users: 3 msg/day total (guru5-9)
-const FREE_NORMAL_DAILY = 10;   // free users: 10 msg/day per model (guru1-4)
+// Sabhi models premium hain, toh dynamically unko fetch kar lenge
+const PREMIUM_IDS = Object.keys(MODEL_MAP).filter(id => MODEL_MAP[id].premium);
+const FREE_PREMIUM_DAILY = 3;   // Har free user ko din ke 3 premium messages milenge total
+const FREE_NORMAL_DAILY = 10;   // Agar koi normal model hoga toh 10
 
-// Fallback chains — sabse stable Google models use kiye hain
-const GEMINI_CHAIN = ['gemini-1.5-flash', 'gemini-1.5-flash-8b', 'gemini-1.0-pro'];
+// Fallback chains — Sirf 100% real aur stable models (3.x ya 1.0 hata diye gaye hain)
+const GEMINI_CHAIN = ['gemini-1.5-flash', 'gemini-1.5-pro'];
 const RESPAN_CHAIN = ['perplexity/sonar', 'openai/gpt-5.6-sol', 'azure_deepseek/deepseek-chat'];
 
 // ============================================================
@@ -49,7 +50,7 @@ async function kvSet(key, value) {
       await fetch(`${UPSTASH_URL}/set/${key}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${UPSTASH_TOKEN}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value: JSON.stringify(value), ex: 7776000 }) // 90 din
+        body: JSON.stringify({ value: JSON.stringify(value), ex: 7776000 }) // 90 days
       });
       return;
     } catch (e) { /* memory fallback */ }
@@ -75,8 +76,9 @@ async function checkQuota(userId, qid) {
   const user = await getUser(userId);
   if (isPremiumUser(user)) return { ok: true, quota: { allowed: Infinity, used: 0, premium: true } };
   const day = (user.days && user.days[todayKey()]) || { premium: 0, perModel: {} };
+  
   if (PREMIUM_IDS.indexOf(qid) !== -1) {
-    return { ok: day.premium < FREE_PREMIUM_DAILY, quota: { allowed: FREE_PREMIUM_DAILY, used: day.premium || 0, premium: false } };
+    return { ok: (day.premium || 0) < FREE_PREMIUM_DAILY, quota: { allowed: FREE_PREMIUM_DAILY, used: day.premium || 0, premium: true } };
   }
   return { ok: (day.perModel[qid] || 0) < FREE_NORMAL_DAILY, quota: { allowed: FREE_NORMAL_DAILY, used: day.perModel[qid] || 0, premium: false } };
 }
@@ -88,8 +90,10 @@ async function recordUsage(userId, qid) {
   const dayKey = todayKey();
   if (!user.days[dayKey]) user.days[dayKey] = { premium: 0, perModel: {} };
   const day = user.days[dayKey];
+  
   if (PREMIUM_IDS.indexOf(qid) !== -1) day.premium = (day.premium || 0) + 1;
-  day.perModel[qid] = (day.perModel[qid] || 0) + 1;
+  else day.perModel[qid] = (day.perModel[qid] || 0) + 1;
+  
   const keys = Object.keys(user.days).sort();
   while (keys.length > 30) delete user.days[keys.shift()];
   await kvSet('u:' + userId, user);
@@ -109,7 +113,7 @@ function resolveDef(model, modelId) {
     const byApi = Object.keys(MODEL_MAP).find(id => MODEL_MAP[id].apiModel === String(model || '').trim());
     if (byApi) { qid = byApi; def = MODEL_MAP[byApi]; }
   }
-  if (!def) { qid = 'guru1'; def = MODEL_MAP.guru1; } // unknown -> safe default
+  if (!def) { qid = 'guru1'; def = MODEL_MAP.guru1; } 
   return { qid, def };
 }
 
@@ -188,17 +192,15 @@ module.exports = async (req, res) => {
 
   const { qid, def } = resolveDef(model, modelId);
   const provider = def.provider || 'pollinations';
-  headers['X-Kush-Route'] = qid + ':' + provider; // debugging ke liye
-  console.log('[kush-chat] qid=' + qid + ' provider=' + provider + ' model="' + model + '" modelId="' + (modelId || '') + '"');
+  headers['X-Kush-Route'] = qid + ':' + provider; 
+  console.log('[kush-chat] qid=' + qid + ' provider=' + provider + ' model="' + model + '"');
 
   const sendErr = (status, msg) => { res.writeHead(status, headers); return res.end(JSON.stringify({ error: msg })); };
 
   // QUOTA CHECK
   const { ok, quota } = await checkQuota(userId, qid);
   if (!ok) {
-    const msg = quota.allowed === FREE_PREMIUM_DAILY
-      ? 'Aaj ke Pro (GURU 5-9) messages khatam (' + quota.used + '/' + quota.allowed + '). Quiz karke Pro unlock karo! 👑'
-      : 'Is model ke ' + quota.allowed + ' messages aaj khatam. Quiz karke Pro unlock karo ya doosra model try karo.';
+    const msg = `Aaj ke messages khatam (${quota.used}/${quota.allowed}). Quiz karke Pro unlock karo! 👑`;
     return sendErr(429, msg);
   }
 
@@ -210,10 +212,11 @@ module.exports = async (req, res) => {
   try {
     let data = null;
 
-    // ---------- GEMINI (GURU 5, 6) — auto-fallback ke saath ----------
+    // ---------- GEMINI (GURU 5, 6) ----------
     if (provider === 'gemini') {
       const gKey = process.env.GEMINI_API_KEY;
       if (!gKey) return sendErr(500, 'Server par GEMINI_API_KEY set nahi hai.');
+      
       const chain = [];
       const first = String(def.upstreamModel || '').trim();
       if (first) chain.push(first);
@@ -222,6 +225,7 @@ module.exports = async (req, res) => {
       const tried = [];
       let lastMsg = 'Unknown error';
       let okResp = false;
+      
       for (const gModel of chain) {
         tried.push(gModel);
         console.log('[kush-chat] gemini try: ' + gModel);
@@ -235,13 +239,18 @@ module.exports = async (req, res) => {
         );
         const raw = await up.json().catch(() => ({}));
         if (up.ok) { data = geminiToOpenAI(raw); okResp = true; break; }
+        
         lastMsg = (raw.error && raw.error.message) || ('Gemini HTTP ' + up.status);
         console.log('[kush-chat] gemini fail: ' + gModel + ' -> ' + up.status + ' ' + lastMsg);
-        if (up.status === 401 || up.status === 403) break; // sirf galat key pe ruko, quota pe agla model try karo
+        
+        // Agar API key invalid hai ya limit exceed ho gayi toh aage badhne ka fayda nahi
+        if (up.status === 401 || up.status === 403 || (up.status === 400 && lastMsg.toLowerCase().includes('api key'))) {
+          break; 
+        }
       }
       if (!okResp) return sendErr(502, 'Gemini error: ' + lastMsg + ' (tried: ' + tried.join(', ') + ')');
 
-    // ---------- RESPAN (GURU 7) — search model + auto-fallback ----------
+    // ---------- RESPAN (GURU 7) ----------
     } else if (provider === 'respan') {
       const rKey = process.env.RESPAN_API_KEY;
       if (!rKey) return sendErr(500, 'Server par RESPAN_API_KEY set nahi hai.');
@@ -265,7 +274,7 @@ module.exports = async (req, res) => {
         if (up.status === 401 || up.status === 403) break;
       }
       if (!data) return sendErr(502, 'GURU 7 fail: ' + lastMsg);
-      // Perplexity citations -> clickable sources
+      
       if (Array.isArray(data.citations) && data.citations.length) {
         const content = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
         data.choices[0].message.content = content + '\n\n---\n**🔗 Sources (internet se):**\n' + data.citations.map((u, i) => (i + 1) + '. [' + u + '](' + u + ')').join('\n');
@@ -288,7 +297,7 @@ module.exports = async (req, res) => {
       }
     }
 
-    // SUCCESS par hi count karo
+    // SUCCESS hone par hi quota count update karo
     await recordUsage(userId, qid);
 
     res.writeHead(200, headers); return res.end(JSON.stringify(data));
