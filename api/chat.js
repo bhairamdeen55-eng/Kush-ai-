@@ -22,7 +22,7 @@ const FREE_PREMIUM_DAILY = 3;   // free users: 3 msg/day total (guru5-9)
 const FREE_NORMAL_DAILY = 10;   // free users: 10 msg/day per model (guru1-4)
 
 // Fallback chains — pehla model fail ho toh automatic agla try hoga
-const GEMINI_CHAIN = ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
+const GEMINI_CHAIN = ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3-flash-preview', 'gemini-3.5-flash-lite', 'gemini-2.5-flash-native-audio-preview-12-2025'];
 const RESPAN_CHAIN = ['perplexity/sonar', 'openai/gpt-5.6-sol', 'azure_deepseek/deepseek-chat'];
 
 // ============================================================
@@ -237,7 +237,7 @@ module.exports = async (req, res) => {
         if (up.ok) { data = geminiToOpenAI(raw); okResp = true; break; }
         lastMsg = (raw.error && raw.error.message) || ('Gemini HTTP ' + up.status);
         console.log('[kush-chat] gemini fail: ' + gModel + ' -> ' + up.status + ' ' + lastMsg);
-        if (up.status === 401 || up.status === 403 || up.status === 429) break; // key/limit — fallback bekaar
+        if (up.status === 401 || up.status === 403) break; // sirf galat key pe ruko, quota pe agla model try karo
       }
       if (!okResp) return sendErr(502, 'Gemini error: ' + lastMsg + ' (tried: ' + tried.join(', ') + ')');
 
