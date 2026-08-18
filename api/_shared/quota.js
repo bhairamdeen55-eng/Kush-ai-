@@ -62,7 +62,7 @@ const MODEL_DEFS = {
   guru3: { apiModel: 'llama',       provider: 'pollinations', premium: true }, // READ BEST
   guru4: { apiModel: 'deepseek',    provider: 'pollinations', premium: true }, // COADING
   guru5: { apiModel: 'qwen-coder',  provider: 'gemini', upstreamModel: 'gemini-2.5-pro',   premium: true }, // PROGRAMMING   👑
-  guru6: { apiModel: 'openai',      provider: 'gemini', upstreamModel: 'gemini-2.5-flash', premium: true }, // FAST RESPONSE 👑
+  guru6: { apiModel: 'openai',      provider: 'gemini', upstreamModel: 'gemini-3.6-flash ', premium: true }, // FAST RESPONSE 👑
   guru7: { apiModel: 'kimi-k3',     provider: 'respan', upstreamModel: 'openai/gpt-5.6-sol', premium: true }, // GURU 7       👑
   guru8: { apiModel: 'flux',        provider: 'pollinations', premium: true }, // IMAGE GEN     👑
   guru9: { apiModel: 'turbo',       provider: 'pollinations', premium: true }  // IMAGE GEN     👑
